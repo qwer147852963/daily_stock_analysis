@@ -354,11 +354,11 @@ class MarketAnalyzer:
     
     def _build_review_prompt(self, overview: MarketOverview, news: List) -> str:
         """构建复盘报告 Prompt"""
-        # 指数行情信息
+        # 指数行情信息（简洁格式，不用emoji）
         indices_text = ""
         for idx in overview.indices:
-            emoji = "🔴" if idx.change_pct < 0 else "🟢" if idx.change_pct > 0 else "⚪"
-            indices_text += f"- {idx.name}: {idx.current:.2f} ({emoji}{idx.change_pct:+.2f}%)\n"
+            direction = "↑" if idx.change_pct > 0 else "↓" if idx.change_pct < 0 else "-"
+            indices_text += f"- {idx.name}: {idx.current:.2f} ({direction}{abs(idx.change_pct):.2f}%)\n"
         
         # 板块信息
         top_sectors_text = ", ".join([f"{s['name']}({s['change_pct']:+.2f}%)" for s in overview.top_sectors[:3]])
@@ -376,39 +376,64 @@ class MarketAnalyzer:
                 snippet = n.get('snippet', '')[:100]
             news_text += f"{i}. {title}\n   {snippet}\n"
         
-        prompt = f"""# 大盘复盘分析请求
+        prompt = f"""你是一位专业的A股市场分析师，请根据以下数据生成一份简洁的大盘复盘报告。
 
-## 📅 日期
+【重要】输出要求：
+- 必须输出纯 Markdown 文本格式
+- 禁止输出 JSON 格式
+- 禁止输出代码块
+- emoji 仅在标题处少量使用（每个标题最多1个）
+
+---
+
+# 今日市场数据
+
+## 日期
 {overview.date}
 
-## 📊 主要指数
+## 主要指数
 {indices_text}
 
-## 📈 市场概况
+## 市场概况
 - 上涨: {overview.up_count} 家 | 下跌: {overview.down_count} 家 | 平盘: {overview.flat_count} 家
 - 涨停: {overview.limit_up_count} 家 | 跌停: {overview.limit_down_count} 家
 - 两市成交额: {overview.total_amount:.0f} 亿元
 - 北向资金: {overview.north_flow:+.2f} 亿元
 
-## 🔥 板块表现
-**领涨板块**: {top_sectors_text}
-**领跌板块**: {bottom_sectors_text}
+## 板块表现
+领涨: {top_sectors_text}
+领跌: {bottom_sectors_text}
 
-## 📰 市场新闻
+## 市场新闻
 {news_text if news_text else "暂无相关新闻"}
 
 ---
 
-请根据以上数据，生成一份专业的大盘复盘报告。要求：
+# 输出格式模板（请严格按此格式输出）
 
-1. **市场总结**（2-3句话概括今日市场表现）
-2. **指数点评**（分析各指数走势特点）
-3. **资金动向**（分析成交额和北向资金含义）
-4. **热点解读**（分析领涨领跌板块背后的逻辑）
-5. **后市展望**（结合新闻给出明日市场预判）
-6. **风险提示**（需要关注的风险点）
+## 📊 {overview.date} 大盘复盘
 
-请用简洁专业的语言，输出 Markdown 格式，适合在微信阅读。
+### 一、市场总结
+（2-3句话概括今日市场整体表现，包括指数涨跌、成交量变化）
+
+### 二、指数点评
+（分析上证、深证、创业板等各指数走势特点）
+
+### 三、资金动向
+（解读成交额和北向资金流向的含义）
+
+### 四、热点解读
+（分析领涨领跌板块背后的逻辑和驱动因素）
+
+### 五、后市展望
+（结合当前走势和新闻，给出明日市场预判）
+
+### 六、风险提示
+（需要关注的风险点）
+
+---
+
+请直接输出复盘报告内容，不要输出其他说明文字。
 """
         return prompt
     
@@ -419,35 +444,35 @@ class MarketAnalyzer:
         sh_index = next((idx for idx in overview.indices if idx.code == '000001'), None)
         if sh_index:
             if sh_index.change_pct > 1:
-                market_mood = "强势上涨 📈"
+                market_mood = "强势上涨"
             elif sh_index.change_pct > 0:
-                market_mood = "小幅上涨 🔼"
+                market_mood = "小幅上涨"
             elif sh_index.change_pct > -1:
-                market_mood = "小幅下跌 🔽"
+                market_mood = "小幅下跌"
             else:
-                market_mood = "明显下跌 📉"
+                market_mood = "明显下跌"
         else:
-            market_mood = "震荡整理 ↔️"
+            market_mood = "震荡整理"
         
-        # 指数行情
+        # 指数行情（简洁格式）
         indices_text = ""
         for idx in overview.indices[:4]:
-            emoji = "🔴" if idx.change_pct < 0 else "🟢" if idx.change_pct > 0 else "⚪"
-            indices_text += f"- **{idx.name}**: {idx.current:.2f} ({emoji}{idx.change_pct:+.2f}%)\n"
+            direction = "↑" if idx.change_pct > 0 else "↓" if idx.change_pct < 0 else "-"
+            indices_text += f"- **{idx.name}**: {idx.current:.2f} ({direction}{abs(idx.change_pct):.2f}%)\n"
         
         # 板块信息
         top_text = "、".join([s['name'] for s in overview.top_sectors[:3]])
         bottom_text = "、".join([s['name'] for s in overview.bottom_sectors[:3]])
         
-        report = f"""## 🎯 {overview.date} 大盘复盘
+        report = f"""## 📊 {overview.date} 大盘复盘
 
-### 📊 市场总结
+### 一、市场总结
 今日A股市场整体呈现**{market_mood}**态势。
 
-### 📈 主要指数
+### 二、主要指数
 {indices_text}
 
-### 📉 涨跌统计
+### 三、涨跌统计
 | 指标 | 数值 |
 |------|------|
 | 上涨家数 | {overview.up_count} |
@@ -457,11 +482,11 @@ class MarketAnalyzer:
 | 两市成交额 | {overview.total_amount:.0f}亿 |
 | 北向资金 | {overview.north_flow:+.2f}亿 |
 
-### 🔥 板块表现
+### 四、板块表现
 - **领涨**: {top_text}
 - **领跌**: {bottom_text}
 
-### ⚠️ 风险提示
+### 五、风险提示
 市场有风险，投资需谨慎。以上数据仅供参考，不构成投资建议。
 
 ---
